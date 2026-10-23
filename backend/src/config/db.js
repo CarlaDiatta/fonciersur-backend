@@ -1,19 +1,34 @@
-const { Pool } = require('pg');
-require('dotenv').config();
+const path = require('path');
+const { Sequelize } = require('sequelize');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
-pool.on('connect', () => {
-  console.log('[BDD] Connexion réussie à PostgreSQL');
-});
+if (!process.env.DB_PASSWORD?.trim()) {
+  throw new Error(
+    'DB_PASSWORD est absent ou vide. Copiez .env.example vers .env et configurez les accès PostgreSQL.'
+  );
+}
 
-pool.on('error', (err) => {
-  console.error('[BDD] Erreur de connexion PostgreSQL :', err);
-});
+const sequelize = new Sequelize(
+  process.env.DB_NAME || 'fonciersur',
+  process.env.DB_USER || 'fonciersur_dev',
+  process.env.DB_PASSWORD,
+  {
+    host: process.env.DB_HOST || 'localhost',
+    port: Number(process.env.DB_PORT || 5432),
+    dialect: 'postgres',
+    logging: false,
+  }
+);
 
-module.exports = {
-  query: (text, params) => pool.query(text, params),
-  pool,
+const connectDB = async () => {
+  try {
+    await sequelize.authenticate();
+    console.log('Connexion à PostgreSQL (Sequelize) réussie.');
+  } catch (error) {
+    console.error('Impossible de se connecter à la base de données :', error);
+    process.exit(1);
+  }
 };
+
+module.exports = { sequelize, connectDB };

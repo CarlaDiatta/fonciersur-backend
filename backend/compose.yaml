@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16
+    container_name: fonciersur-postgres
+    environment:
+      POSTGRES_DB: fonciersur_dev
+      POSTGRES_USER: fonciersur_dev
+      POSTGRES_PASSWORD: fonciersur_dev_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - fonciersur-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fonciersur_dev -d fonciersur_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  fonciersur-postgres-data:

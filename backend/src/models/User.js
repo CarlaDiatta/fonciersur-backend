@@ -1,20 +1,41 @@
-const db = require('../config/db');
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db');
 
-class User {
-  static async findByEmail(email) {
-    const res = await db.query('SELECT * FROM users WHERE email = $1', [email]);
-    return res.rows[0];
-  }
-
-  static async create({ nom, prenom, email, password_hash, role }) {
-    const query = `
-      INSERT INTO users (nom, prenom, email, password_hash, role)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, nom, prenom, email, role, created_at;
-    `;
-    const res = await db.query(query, [nom, prenom, email, password_hash, role]);
-    return res.rows[0];
-  }
-}
+const User = sequelize.define('User', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true,
+  },
+  nom: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  prenom: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  email: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true,
+    validate: {
+      isEmail: true,
+    },
+  },
+  password: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  role: {
+    type: DataTypes.ENUM('PROMOTEUR', 'CADASTRE', 'NOTAIRE'),
+    defaultValue: 'PROMOTEUR',
+    allowNull: false,
+  },
+}, {
+  tableName: 'users',
+  timestamps: true,
+  underscored: true,
+});
 
 module.exports = User;

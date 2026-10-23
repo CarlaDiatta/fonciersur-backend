@@ -1,90 +1,202 @@
-const db = require('../config/db');
 const Validation = require('../models/Validation');
-const blockchainService = require('../services/blockchainService');
-
-/**
- * GET /api/v1/validations/cadastre
- * Liste des parcelles en attente de validation technique (statut SOUMISE)
- */
-exports.getPendingCadastre = async (req, res) => {
-  try {
-    const result = await db.query(
-      "SELECT id, reference, proprio_nom, superficie, statut, created_at FROM parcelles WHERE statut = 'SOUMISE' ORDER BY created_at DESC"
-    );
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Erreur Récupération Cadastre:', error);
-    res.status(500).json({ error: 'Erreur serveur.' });
+// Note : Le service blockchain (de Coumba/Lady) sera branché ici. 
+// Pour l'instant, on gère la logique de validation et le mock/appel.
+const blockchainService = {
+  async validateByCadastre(parcelId, userId, decision, comment) {
+    // Si blockchainService.js existe, il gère l'appel Fabric, sinon on simule
+    return { txId: 'tx_mock_cadastre_' + Date.now() };
+  },
+  async certifyByNotaire(parcelId, userId, comment, status) {
+    return { txId: 'tx_mock_notaire_' + Date.now() };
   }
 };
 
-/**
- * GET /api/v1/validations/cadastre/:id
- * Consulter le détail complet d'une parcelle avant validation par le Cadastre
- */
-exports.getCadastreParcelleDetail = async (req, res) => {
-  const { id } = req.params;
+// -----------------------------------------------------------------------------
+// CADASTRE
+// -----------------------------------------------------------------------------
+exports.getCadastreList = async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM parcelles WHERE id = $1', [id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Parcelle introuvable.' });
+    // Récupère les parcelles au statut SOUMISE
+    const validations = await Validation.findAll({
+      where: { statut: 'SOUMISE' },
+      order: [['createdAt', 'DESC']]
+    });
+    return res.status(200).json(validations);
+  } catch (error) {
+    console.error('Erreur getCadastreList :', error);
+    return res.status(500).json({ error: 'Erreur interne du serveur.' });
+  }
+};
+
+exports.getCadastreHistorique = async (req, res) => {
+  try {
+    const validations = await Validation.findAll({
+      where: { statut: ['APPROUVE', 'REJETE'] },
+      order: [['createdAt', 'DESC']]
+    });
+    return res.status(200).json(validations);
+  } catch (error) {
+    console.error('Erreur getCadastreHistorique :', error);
+    return res.status(500).json({ error: 'Erreur interne du serveur.' });
+  }
+};
+
+exports.getCadastreDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const validation = await Validation.findByPk(id);
+    if (!validation) {
+      return res.status(404).json({ error: 'Parcelle/Validation introuvable.' });
     }
-    res.json(result.rows[0]);
+    return res.status(200).json(validation);
   } catch (error) {
-    console.error('Erreur Détail Cadastre:', error);
-    res.status(500).json({ error: 'Erreur serveur.' });
+    console.error('Erreur getCadastreDetail :', error);
+    return res.status(500).json({ error: 'Erreur interne du serveur.' });
   }
 };
 
-/**
- * POST /api/v1/validations/cadastre/:id
- * Body attendu: { decision: 'APPROUVE' | 'REJETE', motif: string }
- */
-exports.validateCadastre = async (req, res) => {
-  const { id } = req.params;
-  const { decision, motif } = req.body;
-  const userId = req.user.id;
-
+exports.validateByCadastre = async (req, res) => {
   try {
-    // 1. Transaction Blockchain via le service centralisé
-    const fabricResult = await blockchainService.validateByCadastre(id, decision, motif);
+    const { id } = req.params; // parcel_id ou id de validation
+    const { decision, motif } = req.body; // decision: "APPROUVE" ou "REJETE"
 
-    // 2. Mise à jour du statut dans PostgreSQL
-    const newStatut = decision === 'APPROUVE' ? 'VALIDE_CADASTRE' : 'REJETE_CADASTRE';
-    await db.query('UPDATE parcelles SET statut = $1, updated_at = NOW() WHERE id = $2', [newStatut, id]);
+    if (!['APPROUVE', 'REJETE'].includes(decision)) {
+      return res.status(400).json({ error: 'Décision invalide (APPROUVE ou REJETE attendu).' });
+    }
 
-    // 3. Historique dans la table des validations
-    const log = await Validation.create({
-      parcelle_id: id,
-      acteur_id: userId,
-      etape: 'CADASTRE',
-      decision,
-      motif,
-    });
+    if (decision === 'REJETE' && !motif) {
+      return res.status(400).json({ error: 'Le motif est obligatoire en cas de rejet.' });
+    }
 
-    res.json({
-      message: `Décision Cadastre enregistrée : ${newStatut}`,
-      validation: log,
-      fabricTransaction: fabricResult,
+    const validation = await Validation.findByPk(id);
+    if (!validation) {
+      return res.status(404).json({ error: 'Dossier introuvable.' });
+    }
+
+    // Chaîne stricte : Le cadastre ne traite que les SOUMISE
+    if (validation.statut !== 'SOUMISE') {
+      return res.status(409).json({ error: "Ce dossier n'est pas au statut SOUMISE." });
+    }
+
+    const newStatus = decision === 'APPROUVE' ? 'VALIDE_CADASTRE' : 'REJETE_CADASTRE';
+
+    // Règle d'or : Fabric d'abord, base ensuite
+    let txResult;
+    try {
+      txResult = await blockchainService.validateByCadastre(validation.parcel_id, req.user.id, newStatus, motif || '');
+    } catch (fabricError) {
+      console.error('Erreur Fabric (Cadastre) :', fabricError);
+      return res.status(500).json({ error: "Échec de l'enregistrement sur la blockchain. Rien n'a été modifié." });
+    }
+
+    // Mise à jour en base de données
+    validation.statut = newStatus;
+    validation.acteur_id = req.user.id;
+    validation.commentaire = motif || 'Approuvé par le cadastre';
+    validation.fabric_tx_id = txResult.txId;
+    await validation.save();
+
+    return res.status(200).json({
+      message: 'Validation du cadastre enregistrée avec succès.',
+      validation,
+      fabricTransaction: txResult.txId
     });
   } catch (error) {
-    console.error('Erreur Validation Cadastre:', error);
-    res.status(500).json({ error: 'Échec du traitement de la validation.', details: error.message });
+    console.error('Erreur validateByCadastre :', error);
+    return res.status(500).json({ error: 'Erreur interne du serveur.' });
   }
 };
 
-/**
- * GET /api/v1/validations/cadastre/historique
- * Liste de l'historique des dossiers traités par le Cadastre
- */
-exports.getCadastreHistory = async (req, res) => {
+// -----------------------------------------------------------------------------
+// NOTAIRE
+// -----------------------------------------------------------------------------
+exports.getNotaireList = async (req, res) => {
   try {
-    const result = await db.query(
-      "SELECT * FROM parcelles WHERE statut IN ('VALIDE_CADASTRE', 'REJETE_CADASTRE', 'CERTIFIEE') ORDER BY updated_at DESC"
-    );
-    res.json(result.rows);
+    const validations = await Validation.findAll({
+      where: { statut: 'VALIDE_CADASTRE' },
+      order: [['createdAt', 'DESC']]
+    });
+    return res.status(200).json(validations);
   } catch (error) {
-    console.error('Erreur Historique Cadastre:', error);
-    res.status(500).json({ error: 'Erreur serveur.' });
+    console.error('Erreur getNotaireList :', error);
+    return res.status(500).json({ error: 'Erreur interne du serveur.' });
+  }
+};
+
+exports.getNotaireHistorique = async (req, res) => {
+  try {
+    const validations = await Validation.findAll({
+      where: { statut: ['CERTIFIEE', 'REJETE_NOTAIRE'] },
+      order: [['createdAt', 'DESC']]
+    });
+    return res.status(200).json(validations);
+  } catch (error) {
+    console.error('Erreur getNotaireHistorique :', error);
+    return res.status(500).json({ error: 'Erreur interne du serveur.' });
+  }
+};
+
+exports.getNotaireDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const validation = await Validation.findByPk(id);
+    if (!validation) {
+      return res.status(404).json({ error: 'Dossier introuvable.' });
+    }
+    return res.status(200).json(validation);
+  } catch (error) {
+    console.error('Erreur getNotaireDetail :', error);
+    return res.status(500).json({ error: 'Erreur interne du serveur.' });
+  }
+};
+
+exports.certifyByNotaire = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { decision, motif } = req.body; // decision: "CERTIFIE" ou "REJETE"
+
+    if (!['CERTIFIE', 'REJETE'].includes(decision)) {
+      return res.status(400).json({ error: 'Décision invalide (CERTIFIE ou REJETE attendu).' });
+    }
+
+    if (decision === 'REJETE' && !motif) {
+      return res.status(400).json({ error: 'Le motif est obligatoire en cas de rejet.' });
+    }
+
+    const validation = await Validation.findByPk(id);
+    if (!validation) {
+      return res.status(404).json({ error: 'Dossier introuvable.' });
+    }
+
+    // Le notaire ne traite que les VALIDE_CADASTRE
+    if (validation.statut !== 'VALIDE_CADASTRE') {
+      return res.status(409).json({ error: "Ce dossier n'a pas été validé par le cadastre au préalable." });
+    }
+
+    const newStatus = decision === 'CERTIFIE' ? 'CERTIFIEE' : 'REJETE_NOTAIRE';
+
+    // Règle d'or : Fabric d'abord
+    let txResult;
+    try {
+      txResult = await blockchainService.certifyByNotaire(validation.parcel_id, req.user.id, motif || '', newStatus);
+    } catch (fabricError) {
+      console.error('Erreur Fabric (Notaire) :', fabricError);
+      return res.status(500).json({ error: "Échec de la certification sur la blockchain. Rien n'a été modifié." });
+    }
+
+    validation.statut = newStatus;
+    validation.acteur_id = req.user.id;
+    validation.commentaire = motif || 'Certifié par le notaire';
+    validation.fabric_tx_id = txResult.txId;
+    await validation.save();
+
+    return res.status(200).json({
+      message: 'Certification du notaire enregistrée avec succès.',
+      validation,
+      fabricTransaction: txResult.txId
+    });
+  } catch (error) {
+    console.error('Erreur certifyByNotaire :', error);
+    return res.status(500).json({ error: 'Erreur interne du serveur.' });
   }
 };

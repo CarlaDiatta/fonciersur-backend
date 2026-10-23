@@ -1,16 +1,16 @@
 const jwt = require('jsonwebtoken');
+const { secret } = require('../config/jwt');
 
-const auth = (req, res, next) => {
-  const authHeader = req.headers.authorization;
+const verifyToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Format: Bearer TOKEN
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!token) {
     return res.status(401).json({ error: 'Accès refusé. Token manquant.' });
   }
 
-  const token = authHeader.split(' ')[1];
-
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, secret);
     req.user = decoded;
     next();
   } catch (error) {
@@ -18,4 +18,4 @@ const auth = (req, res, next) => {
   }
 };
 
-module.exports = auth;
+module.exports = verifyToken;

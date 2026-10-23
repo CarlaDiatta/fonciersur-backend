@@ -1,22 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const validationController = require('../controllers/validationController');
-const auth = require('../middleware/auth');
+const verifyToken = require('../middleware/auth');
 const checkRole = require('../middleware/roles');
 
-// Toutes les routes ci-dessous nécessitent d'être connecté et d'avoir le rôle CADASTRE
-router.use(auth, checkRole('CADASTRE'));
+// Routes CADASTRE (Protégées : Token valide + Rôle CADASTRE)
+router.get('/cadastre', verifyToken, checkRole(['CADASTRE']), validationController.getCadastreList);
+router.get('/cadastre/historique', verifyToken, checkRole(['CADASTRE']), validationController.getCadastreHistorique);
+router.get('/cadastre/:id', verifyToken, checkRole(['CADASTRE']), validationController.getCadastreDetail);
+router.post('/cadastre/:id', verifyToken, checkRole(['CADASTRE']), validationController.validateByCadastre);
 
-// 1. Liste des parcelles en attente
-router.get('/cadastre', validationController.getPendingCadastre);
-
-// 2. Historique des validations Cadastre
-router.get('/cadastre/historique', validationController.getCadastreHistory);
-
-// 3. Détail d'une parcelle
-router.get('/cadastre/:id', validationController.getCadastreParcelleDetail);
-
-// 4. Action de valider ou rejeter par le Cadastre
-router.post('/cadastre/:id', validationController.validateCadastre);
+// Routes NOTAIRE (Protégées : Token valide + Rôle NOTAIRE)
+router.get('/notaire', verifyToken, checkRole(['NOTAIRE']), validationController.getNotaireList);
+router.get('/notaire/historique', verifyToken, checkRole(['NOTAIRE']), validationController.getNotaireHistorique);
+router.get('/notaire/:id', verifyToken, checkRole(['NOTAIRE']), validationController.getNotaireDetail);
+router.post('/notaire/:id', verifyToken, checkRole(['NOTAIRE']), validationController.certifyByNotaire);
 
 module.exports = router;

@@ -1,63 +1,93 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { secret, expiresIn } = require('../config/jwt');
 
+// Inscription (Réservée exclusivement au rôle PROMOTEUR)
 exports.register = async (req, res) => {
-  const { nom, prenom, email, password, role } = req.body;
-
   try {
-    const existingUser = await User.findByEmail(email);
+    const { nom, prenom, email, password } = req.body;
+
+    if (!nom || !prenom || !email || !password) {
+      return res.status(400).json({ error: 'Tous les champs sont obligatoires.' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères.' });
+    }
+
+    const lowerEmail = email.toLowerCase().trim();
+
+    const existingUser = await User.findOne({ where: { email: lowerEmail } });
     if (existingUser) {
       return res.status(400).json({ error: 'Cet email est déjà utilisé.' });
     }
 
-    const salt = await bcrypt.genSalt(10);
-    const password_hash = await bcrypt.hash(password, salt);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newUser = await User.create({ nom, prenom, email, password_hash, role });
+    const newUser = await User.create({
+      nom,
+      prenom,
+      email: lowerEmail,
+      password: hashedPassword,
+      role: 'PROMOTEUR', // Rôle figé par le cahier des charges pour l'inscription publique
+    });
 
-    res.status(201).json({
-      message: 'Utilisateur créé avec succès',
-      user: newUser
+    return res.status(201).json({
+      message: 'Inscription réussie.',
+      user: {
+        id: newUser.id,
+        nom: newUser.nom,
+        prenom: newUser.prenom,
+        email: newUser.email,
+        role: newUser.role,
+      },
     });
   } catch (error) {
-    console.error('Erreur Register:', error);
-    res.status(500).json({ error: 'Erreur lors de l’inscription.' });
+    console.error("Erreur lors de l'inscription :", error);
+    return res.status(500).json({ error: "Erreur interne du serveur." });
   }
 };
 
+// Connexion
 exports.login = async (req, res) => {
-  const { email, password } = req.body;
-
   try {
-    const user = await User.findByEmail(email);
-    if (!user) {
-      return res.status(401).json({ error: 'Identifiants incorrects.' });
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email et mot de passe requis.' });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password_hash);
+    const lowerEmail = email.toLowerCase().trim();
+    const user = await User.findOne({ where: { email: lowerEmail } });
+
+    if (!user) {
+      return res.status(401).json({ error: 'Email ou mot de passe incorrect.' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ error: 'Identifiants incorrects.' });
+      return res.status(401).json({ error: 'Email ou mot de passe incorrect.' });
     }
 
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+      secret,
+      { expiresIn }
     );
 
-    res.json({
+    return res.status(200).json({
       token,
       user: {
         id: user.id,
         nom: user.nom,
         prenom: user.prenom,
         email: user.email,
-        role: user.role
-      }
+        role: user.role,
+      },
     });
   } catch (error) {
-    console.error('Erreur Login:', error);
-    res.status(500).json({ error: 'Erreur lors de la connexion.' });
+    console.error('Erreur lors de la connexion :', error);
+    return res.status(500).json({ error: 'Erreur interne du serveur.' });
   }
 };

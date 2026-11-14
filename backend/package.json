@@ -4,7 +4,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/server.js cadastre-notaire",
+    "start:cadastre": "node src/server.js cadastre-notaire",
+    "start:promoteur": "node src/server.js promoteur",
+    "dev": "nodemon src/server.js cadastre-notaire",
+    "dev:cadastre": "nodemon src/server.js cadastre-notaire",
+    "dev:promoteur": "nodemon src/server.js promoteur",
+    "test": "node --test"
   },
   "keywords": [],
   "author": "",

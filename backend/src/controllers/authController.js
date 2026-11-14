@@ -6,21 +6,26 @@ const { secret, expiresIn } = require('../config/jwt');
 // Inscription (Réservée exclusivement au rôle PROMOTEUR)
 exports.register = async (req, res) => {
   try {
-    const { nom, prenom, email, password } = req.body;
+    const nom = typeof req.body.nom === 'string' ? req.body.nom.trim() : '';
+    const prenom = typeof req.body.prenom === 'string' ? req.body.prenom.trim() : '';
+    const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    const { password } = req.body;
 
-    if (!nom || !prenom || !email || !password) {
+    if (!nom || !prenom || !email || typeof password !== 'string' || !password) {
       return res.status(400).json({ error: 'Tous les champs sont obligatoires.' });
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Adresse e-mail invalide.' });
     }
 
     if (password.length < 8) {
       return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères.' });
     }
 
-    const lowerEmail = email.toLowerCase().trim();
-
-    const existingUser = await User.findOne({ where: { email: lowerEmail } });
+    const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
-      return res.status(400).json({ error: 'Cet email est déjà utilisé.' });
+      return res.status(409).json({ error: 'Cet email est déjà utilisé.' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -28,9 +33,9 @@ exports.register = async (req, res) => {
     const newUser = await User.create({
       nom,
       prenom,
-      email: lowerEmail,
+      email,
       password: hashedPassword,
-      role: 'PROMOTEUR', // Rôle figé par le cahier des charges pour l'inscription publique
+      role: 'PROMOTEUR',
     });
 
     return res.status(201).json({
@@ -44,6 +49,9 @@ exports.register = async (req, res) => {
       },
     });
   } catch (error) {
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(409).json({ error: 'Cet email est déjà utilisé.' });
+    }
     console.error("Erreur lors de l'inscription :", error);
     return res.status(500).json({ error: "Erreur interne du serveur." });
   }
@@ -52,14 +60,14 @@ exports.register = async (req, res) => {
 // Connexion
 exports.login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    const { password } = req.body;
 
-    if (!email || !password) {
+    if (!email || typeof password !== 'string' || !password) {
       return res.status(400).json({ error: 'Email et mot de passe requis.' });
     }
 
-    const lowerEmail = email.toLowerCase().trim();
-    const user = await User.findOne({ where: { email: lowerEmail } });
+    const user = await User.findOne({ where: { email } });
 
     if (!user) {
       return res.status(401).json({ error: 'Email ou mot de passe incorrect.' });

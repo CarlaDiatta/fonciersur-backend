@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 interface User {
   id: string;
@@ -8,15 +8,11 @@ interface User {
 }
 
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-
-  useEffect(() => {
+  const [user, setUser] = useState<User | null>(() => {
     const savedUser = localStorage.getItem('user');
-    if (savedUser && token) {
-      setUser(JSON.parse(savedUser));
-    }
-  }, [token]);
+    return savedUser && token ? JSON.parse(savedUser) : null;
+  });
 
   const login = (newToken: string, newUser: User) => {
     localStorage.setItem('token', newToken);

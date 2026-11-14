@@ -17,15 +17,30 @@ if (!(Test-Path .env)) { Copy-Item .env.example .env }
 docker compose up -d
 ```
 
-### Lancer le backend
+### Configuration des services
 
-Depuis le dossier `backend`, pour l'une ou l'autre option PostgreSQL :
+Les deux services lisent le même fichier `.env` et doivent utiliser le même `JWT_SECRET` (au moins 32 caractères aléatoires en production). Ne partagez pas ce secret et ne le commitez jamais. Les fichiers `.env` sont ignorés par Git.
 
 ```powershell
 npm install
 node src/scripts/seed.js
-node src/server.js
 ```
+
+### Lancer les deux API
+
+Depuis deux terminaux distincts, dans le dossier `backend` :
+
+```powershell
+npm run dev:cadastre
+```
+
+```powershell
+npm run dev:promoteur
+```
+
+L'API Cadastre/Notaire écoute sur `http://localhost:5000/api/v1` et l'API Promoteur sur `http://localhost:5001/api/v1`. Les deux autorisent le frontend sur le port 5173. L'authentification est disponible sur les deux API ; le frontend dirige ensuite les requêtes vers le service correspondant au rôle connecté.
+
+La soumission Promoteur crée d'abord un brouillon, puis appelle `POST /api/v1/validations` sur le service Cadastre. Les décisions Cadastre/Notaire sont transmises au service Promoteur par `PATCH /api/v1/parcelles/:id/statut`; les échecs de transmission sont conservés dans une file PostgreSQL et réessayés automatiquement. La lecture interservice se fait via `GET /api/v1/parcelles/:id`. Tous les statuts persistés sont `BROUILLON`, `SOUMISE`, `VALIDE_CADASTRE`, `REJETE_CADASTRE`, `CERTIFIEE` ou `REJETE_NOTAIRE`.
 
 Pour Docker, les paramètres `DB_*` de `.env` doivent correspondre à `.env.example`. Le conteneur utilise le port `5433` pour éviter les conflits avec une installation PostgreSQL sur `5432`. Les identifiants de `.env.example` sont réservés au développement local avec Docker ; ne les utilisez pas en production.
 

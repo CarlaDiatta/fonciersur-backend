@@ -4,6 +4,8 @@ const validationController = require('../controllers/validationController');
 const verifyToken = require('../middleware/auth');
 const checkRole = require('../middleware/roles');
 
+router.post('/', verifyToken, checkRole(['PROMOTEUR']), validationController.createValidation);
+
 // Routes CADASTRE (Protégées : Token valide + Rôle CADASTRE)
 router.get('/cadastre', verifyToken, checkRole(['CADASTRE']), validationController.getCadastreList);
 router.get('/cadastre/historique', verifyToken, checkRole(['CADASTRE']), validationController.getCadastreHistorique);

@@ -4,10 +4,14 @@ const User = require('../models/User');
 
 const seedDatabase = async () => {
   try {
-    await connectDB();
-    await sequelize.sync({ alter: true });
+    const defaultPassword = process.env.SEED_PASSWORD;
+    if (typeof defaultPassword !== 'string' || defaultPassword.length < 12) {
+      throw new Error('SEED_PASSWORD doit être défini et contenir au moins 12 caractères.');
+    }
 
-    const defaultPassword = process.env.SEED_PASSWORD || 'Fonciersur2026!';
+    await connectDB();
+    await sequelize.sync();
+
     const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
     const users = [
@@ -35,11 +39,16 @@ const seedDatabase = async () => {
     }
 
     console.log('Peuplement (Seed) de la base de données terminé avec succès !');
-    process.exit(0);
   } catch (error) {
     console.error('Erreur lors du seed :', error);
-    process.exit(1);
+    process.exitCode = 1;
+  } finally {
+    await sequelize.close();
   }
 };
 
-seedDatabase();
+if (require.main === module) {
+  void seedDatabase();
+}
+
+module.exports = seedDatabase;

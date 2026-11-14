@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/db');
+const { PARCEL_STATUSES } = require('../constants/parcelleStatus');
 const User = require('./User');
 
 const Validation = sequelize.define('Validation', {
@@ -11,9 +12,14 @@ const Validation = sequelize.define('Validation', {
   parcel_id: {
     type: DataTypes.STRING,
     allowNull: false,
+    unique: 'validations_parcel_id_unique',
+  },
+  parcelle_snapshot: {
+    type: DataTypes.JSONB,
+    allowNull: true,
   },
   statut: {
-    type: DataTypes.STRING,
+    type: DataTypes.ENUM(...PARCEL_STATUSES),
     allowNull: false,
     defaultValue: 'SOUMISE',
   },

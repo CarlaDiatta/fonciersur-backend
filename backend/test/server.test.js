@@ -58,6 +58,12 @@ test('service profiles expose only their own business routes', async () => {
   assert.equal(promoterRoute.status, 404);
 });
 
+test('Notaire validation routes stay behind role authentication', async () => {
+  const notaireRoute = await fetch(`${baseUrl}/api/v1/validations/notaire`);
+
+  assert.equal(notaireRoute.status, 401);
+});
+
 test('role guard accepts the array form used by route declarations', () => {
   let nextCalled = false;
   const response = {

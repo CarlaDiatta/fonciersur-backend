@@ -12,7 +12,7 @@ router.get('/cadastre/historique', verifyToken, checkRole(['CADASTRE']), validat
 router.get('/cadastre/:id', verifyToken, checkRole(['CADASTRE']), validationController.getCadastreDetail);
 router.post('/cadastre/:id', verifyToken, checkRole(['CADASTRE']), validationController.validateByCadastre);
 
-// Routes NOTAIRE (Protégées : Token valide + Rôle NOTAIRE)
+// API de validation Notaire (écran géré séparément)
 router.get('/notaire', verifyToken, checkRole(['NOTAIRE']), validationController.getNotaireList);
 router.get('/notaire/historique', verifyToken, checkRole(['NOTAIRE']), validationController.getNotaireHistorique);
 router.get('/notaire/:id', verifyToken, checkRole(['NOTAIRE']), validationController.getNotaireDetail);

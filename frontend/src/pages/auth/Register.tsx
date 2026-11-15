@@ -8,6 +8,7 @@ export default function Register() {
   const [prenom, setPrenom] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -18,16 +19,15 @@ export default function Register() {
     setLoading(true);
 
     try {
-      // Rôle figé à PROMOTEUR selon la maquette (les autres sont créés par l'admin)
       await axiosClient.post('/auth/register', {
         nom,
         prenom,
         email,
         password,
-        role: 'PROMOTEUR'
+        role: 'PROMOTEUR',
       });
 
-      navigate('/login', { state: { registered: true } });
+      navigate('/login', { replace: true, state: { registered: true } });
     } catch (err: any) {
       setError(err.response?.data?.error || "Erreur lors de l'inscription");
     } finally {
@@ -98,9 +98,11 @@ export default function Register() {
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">Adresse e-mail</label>
             <input
+              name="register-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
               placeholder="nom@exemple.sn"
               className="w-full rounded-xl border border-gray-200 p-3.5 text-sm focus:border-gray-900 focus:outline-none transition"
               required
@@ -108,16 +110,42 @@ export default function Register() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">Mot de passe</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="8 caractères minimum"
-              className="w-full rounded-xl border border-gray-200 p-3.5 text-sm focus:border-gray-900 focus:outline-none transition"
-              minLength={8}
-              required
-            />
+            <label htmlFor="register-password" className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">Mot de passe</label>
+            <div className="relative">
+              <input
+                id="register-password"
+                name="register-password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="8 caractères minimum"
+                className="w-full rounded-xl border border-gray-200 p-3.5 pr-12 text-sm focus:border-gray-900 focus:outline-none transition"
+                minLength={8}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((visible) => !visible)}
+                aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                aria-pressed={showPassword}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 hover:text-gray-900"
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+                  {showPassword ? (
+                    <>
+                      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </>
+                  ) : (
+                    <>
+                      <path d="M3 3l18 18" />
+                      <path d="M10.6 5.2A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a15.5 15.5 0 0 1-3.2 3.9M6.2 6.2C3.5 8 2 12 2 12s3.6 7 10 7c1.4 0 2.7-.3 3.8-.8" />
+                      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+                    </>
+                  )}
+                </svg>
+              </button>
+            </div>
           </div>
 
           <button

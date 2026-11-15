@@ -58,7 +58,6 @@ export default function CadastreDashboard() {
         <nav className="flex space-x-6 text-sm font-medium text-gray-600">
           <Link to="/cadastre" className="text-gray-900 font-bold">Dossiers à valider</Link>
           <Link to="/cadastre/historique" className="hover:text-gray-900 transition">Historique</Link>
-          <Link to="/blockchain-proof" state={{ returnTo: '/cadastre' }} className="hover:text-gray-900 transition">Preuve blockchain</Link>
           <button onClick={handleLogout} className="text-red-600 hover:text-red-700 transition">
             Déconnexion
           </button>

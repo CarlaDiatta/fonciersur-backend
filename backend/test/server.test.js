@@ -58,6 +58,14 @@ test('service profiles expose only their own business routes', async () => {
   assert.equal(promoterRoute.status, 404);
 });
 
+test('Carla scope keeps protected Notaire API routes but hides standalone blockchain proof', async () => {
+  const notaireRoute = await fetch(`${baseUrl}/api/v1/validations/notaire`);
+  const blockchainProofRoute = await fetch(`${baseUrl}/api/v1/blockchain/proof/reference`);
+
+  assert.equal(notaireRoute.status, 401);
+  assert.equal(blockchainProofRoute.status, 404);
+});
+
 test('role guard accepts the array form used by route declarations', () => {
   let nextCalled = false;
   const response = {

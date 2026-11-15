@@ -13,22 +13,37 @@ async function tableExists(tableName) {
   return Boolean(result?.table_name);
 }
 
+async function enumExists(enumTypeName) {
+  const [result] = await sequelize.query(
+    'SELECT to_regtype(:enumTypeName) AS enum_type',
+    {
+      replacements: { enumTypeName: `public.${enumTypeName}` },
+      type: QueryTypes.SELECT,
+    },
+  );
+  return Boolean(result?.enum_type);
+}
+
 async function migrateStatusEnum(tableName, enumTypeName, defaultStatus) {
   if (!await tableExists(tableName)) return;
 
   const [statusColumn] = await sequelize.query(
-    'SELECT udt_name FROM information_schema.columns WHERE table_schema = :schemaName AND table_name = :tableName AND column_name = :columnName',
+    'SELECT udt_name, is_nullable, column_default FROM information_schema.columns WHERE table_schema = :schemaName AND table_name = :tableName AND column_name = :columnName',
     {
       replacements: { schemaName: 'public', tableName, columnName: 'statut' },
       type: QueryTypes.SELECT,
     },
   );
+
   if (!statusColumn) {
-    throw new Error(`Migration impossible : la colonne 'statut' est absente de ${tableName}.`);
+    await sequelize.query(`
+      ALTER TABLE ${tableName}
+      ADD COLUMN statut TEXT NOT NULL DEFAULT '${defaultStatus}';
+    `);
   }
 
   let currentLabels;
-  if (statusColumn.udt_name === enumTypeName) {
+  if (statusColumn?.udt_name === enumTypeName || await enumExists(enumTypeName)) {
     const [enumResult] = await sequelize.query(
       'SELECT array_agg(enumlabel ORDER BY enumsortorder) AS labels FROM pg_enum WHERE enumtypid = to_regtype(:enumTypeName)',
       {
@@ -52,8 +67,12 @@ async function migrateStatusEnum(tableName, enumTypeName, defaultStatus) {
       ELSE statut
     END;
   `);
-  await sequelize.query(`DROP TYPE IF EXISTS ${enumTypeName};`);
-  await sequelize.query(`DROP TYPE IF EXISTS ${enumTypeName}_next;`);
+  if (await enumExists(`${enumTypeName}_next`)) {
+    await sequelize.query(`DROP TYPE IF EXISTS ${enumTypeName}_next CASCADE;`);
+  }
+  if (await enumExists(enumTypeName)) {
+    await sequelize.query(`DROP TYPE IF EXISTS ${enumTypeName} CASCADE;`);
+  }
   await sequelize.query(`
     CREATE TYPE ${enumTypeName}_next AS ENUM (
       'BROUILLON',
@@ -80,6 +99,10 @@ async function migrateValidationSchema() {
     await sequelize.query(`
       ALTER TABLE validations
       ADD COLUMN IF NOT EXISTS parcelle_snapshot JSONB;
+    `);
+    await sequelize.query(`
+      ALTER TABLE validations
+      ADD COLUMN IF NOT EXISTS statut TEXT NOT NULL DEFAULT 'SOUMISE';
     `);
     await migrateStatusEnum('validations', 'enum_validations_statut', 'SOUMISE');
 

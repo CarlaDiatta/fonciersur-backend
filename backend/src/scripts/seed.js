@@ -31,10 +31,16 @@ const seedDatabase = async () => {
         },
       });
 
-      if (created) {
-        console.log(`[SEED] Utilisateur ${userData.role} créé : ${userData.email}`);
+      if (!created) {
+        await user.update({
+          nom: userData.nom,
+          prenom: userData.prenom,
+          password: hashedPassword,
+          role: userData.role,
+        });
+        console.log(`[SEED] Utilisateur ${userData.role} mis à jour : ${userData.email}`);
       } else {
-        console.log(`[SEED] Utilisateur ${userData.role} existe déjà : ${userData.email}`);
+        console.log(`[SEED] Utilisateur ${userData.role} créé : ${userData.email}`);
       }
     }
 

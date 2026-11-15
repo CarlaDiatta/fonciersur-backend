@@ -86,7 +86,6 @@ export default function CadastreHistorique() {
         <nav className="flex space-x-6 text-sm font-medium text-gray-600">
           <Link to="/cadastre" className="hover:text-gray-900 transition">Dossiers à valider</Link>
           <Link to="/cadastre/historique" className="text-gray-900 font-bold">Historique</Link>
-          <Link to="/blockchain-proof" state={{ returnTo: '/cadastre' }} className="hover:text-gray-900 transition">Preuve blockchain</Link>
           <button onClick={handleLogout} className="text-red-600 hover:text-red-700 transition">
             Déconnexion
           </button>

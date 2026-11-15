@@ -33,14 +33,19 @@ export default function Login() {
 
     try {
       const response = await axiosClient.post('/auth/login', { email, password });
-      if (response.data.user.role !== 'CADASTRE') {
-        setError("Cette version de l’application est réservée à l’espace Cadastre.");
-        return;
-      }
-
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
-      navigate('/cadastre');
+
+      const role = response.data.user.role;
+      if (role === 'PROMOTEUR') {
+        navigate('/promoteur');
+      } else if (role === 'CADASTRE') {
+        navigate('/cadastre');
+      } else if (role === 'NOTAIRE') {
+        navigate('/notaire');
+      } else {
+        navigate('/');
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Identifiants invalides');
     } finally {
